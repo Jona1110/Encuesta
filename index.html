@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Encuesta sobre Estrés</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(to right, #fbe4e4, #e0f7fa);
+    margin: 0;
+    padding: 0;
+  }
+
+  h2 {
+    text-align: center;
+    margin-top: 30px;
+    color: #333;
+  }
+
+  form {
+    max-width: 700px;
+    margin: 30px auto;
+    background-color: #ffffffdd;
+    padding: 30px;
+    border-radius: 20px;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+  }
+
+  .pregunta {
+    margin-bottom: 20px;
+    padding: 10px 15px;
+    border-radius: 12px;
+    background-color: #ffe0b2;
+  }
+
+  .pregunta:nth-child(even) {
+    background-color: #c8e6c9;
+  }
+
+  .pregunta label {
+    font-weight: bold;
+    display: block;
+    margin-bottom: 8px;
+    color: #333;
+  }
+
+  .opciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+  }
+
+  .opciones label {
+    font-weight: normal;
+    cursor: pointer;
+  }
+
+  input[type="radio"] {
+    margin-right: 5px;
+    accent-color: #4CAF50;
+  }
+
+  button {
+    background-color: #ffb74d;
+    color: white;
+    border: none;
+    padding: 14px 20px;
+    border-radius: 12px;
+    cursor: pointer;
+    width: 100%;
+    font-size: 18px;
+    font-weight: bold;
+    transition: 0.3s;
+  }
+
+  button:hover {
+    background-color: #ffa726;
+  }
+
+  @media (max-width: 768px) {
+    form {
+      margin: 20px;
+      padding: 20px;
+    }
+    button {
+      font-size: 16px;
+    }
+  }
+</style>
+</head>
+<body>
+  <h2>Encuesta sobre Estrés</h2>
+  <form id="form">
+    <div class="pregunta">
+      <label>1. ¿Alguna vez te has sentido estresado?</label>
+      <div class="opciones">
+        <label><input type="radio" name="p1" value="Sí" required> Sí</label>
+        <label><input type="radio" name="p1" value="No"> No</label>
+      </div>
+    </div>
+
+    <div class="pregunta">
+      <label>2. ¿Con qué frecuencia te has sentido estresado?</label>
+      <div class="opciones">
+        <label><input type="radio" name="p2" value="Frecuentemente" required> Frecuentemente</label>
+        <label><input type="radio" name="p2" value="Ocasionalmente"> Ocasionalmente</label>
+        <label><input type="radio" name="p2" value="Raramente"> Raramente</label>
+      </div>
+    </div>
+
+    <div class="pregunta">
+      <label>3. ¿Se te ha hecho difícil llevar a cabo una tarea debido a falta de concentración o preocupación?</label>
+      <div class="opciones">
+        <label><input type="radio" name="p3" value="Sí" required> Sí</label>
+        <label><input type="radio" name="p3" value="No"> No</label>
+      </div>
+    </div>
+
+    <div class="pregunta">
+      <label>4. ¿Consideras que las relaciones personales te generan estrés?</label>
+      <div class="opciones">
+        <label><input type="radio" name="p4" value="Sí" required> Sí</label>
+        <label><input type="radio" name="p4" value="No"> No</label>
+      </div>
+    </div>
+
+    <div class="pregunta">
+      <label>5. ¿Sientes que tienes demasiado quehacer y poco tiempo para lograrlo?</label>
+      <div class="opciones">
+        <label><input type="radio" name="p5" value="Sí" required> Sí</label>
+        <label><input type="radio" name="p5" value="No"> No</label>
+      </div>
+    </div>
+
+    <div class="pregunta">
+      <label>6. ¿Cuando te sientes sol@ o estresad@, tienes algún apoyo o te acercas a alguien?</label>
+      <div class="opciones">
+        <label><input type="radio" name="p6" value="Sí" required> Sí</label>
+        <label><input type="radio" name="p6" value="No"> No</label>
+      </div>
+    </div>
+
+    <div class="pregunta">
+      <label>7. ¿Consideras que el estrés afecta tu salud física o mental?</label>
+      <div class="opciones">
+        <label><input type="radio" name="p7" value="Sí" required> Sí</label>
+        <label><input type="radio" name="p7" value="No"> No</label>
+      </div>
+    </div>
+
+    <div class="pregunta">
+      <label>8. ¿Conoces alguna técnica de manejo de estrés?</label>
+      <div class="opciones">
+        <label><input type="radio" name="p8" value="Sí" required> Sí</label>
+        <label><input type="radio" name="p8" value="No"> No</label>
+      </div>
+    </div>
+
+    <div class="pregunta">
+      <label>9. En caso de que sí conozcas, ¿has realizado alguna?</label>
+      <div class="opciones">
+        <label><input type="radio" name="p9" value="Sí" required> Sí</label>
+        <label><input type="radio" name="p9" value="No"> No</label>
+      </div>
+    </div>
+
+    <div class="pregunta">
+      <label>10. ¿Te ha ayudado?</label>
+      <div class="opciones">
+        <label><input type="radio" name="p10" value="Sí" required> Sí</label>
+        <label><input type="radio" name="p10" value="No"> No</label>
+      </div>
+    </div>
+
+    <button type="submit">Generar PDF</button>
+  </form>
+
+  <script>
+    const { jsPDF } = window.jspdf;
+    const form = document.getElementById('form');
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+
+      const doc = new jsPDF();
+
+      // Título con color pastel
+      doc.setFontSize(22);
+      doc.setTextColor(102, 51, 153);
+      doc.text("Encuesta sobre Estrés", 105, 20, {align: "center"});
+
+      // Línea decorativa
+      doc.setDrawColor(180, 180, 250);
+      doc.setLineWidth(0.7);
+      doc.line(20, 25, 190, 25);
+
+      // Respuestas
+      doc.setFontSize(14);
+      doc.setTextColor(50, 50, 50);
+      let y = 35;
+      for (let i = 1; i <= 10; i++) {
+        const value = form['p'+i].value;
+        
+        // Fondo pastel para cada pregunta
+        doc.setFillColor(i%2===0 ? 200 : 255, 230, 200);
+        doc.rect(15, y-6, 180, 10, 'F');
+
+        doc.text(`Pregunta ${i}: ${value}`, 20, y);
+        y += 15;
+      }
+
+      // Descargar PDF
+      doc.save("Encuesta_Estres_Respuestas.pdf");
+    });
+  </script>
+</body>
+</html>
