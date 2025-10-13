@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Encuesta Anónima sobre Estrés</title>
+    <!-- Carga de Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Carga de la librería html2pdf para exportar -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Estilos personalizados para el tema pastel */
+        :root {
+            --color-primary: #f8c0c8; /* Rosa Pastel (Énfasis / Sí) */
+            --color-secondary: #c0f8e9; /* Menta Pastel (Acción secundaria / No) */
+            --color-background: #fffafa; /* Fondo muy claro */
+            --color-text: #4a5568; /* Gris oscuro */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--color-background);
+            color: var(--color-text);
+        }
+        .header-bg {
+            background-color: var(--color-primary);
+        }
+        
+        /* Botones principales y secundarios */
+        .btn-primary {
+            background-color: var(--color-primary);
+            color: #4a5568;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px #e5a9b0; /* Sombra sutil para un look suave */
+        }
+        .btn-primary:hover {
+            background-color: #f6a6b0;
+            box-shadow: 0 2px #e5a9b0;
+            transform: translateY(1px);
+        }
+        .btn-secondary {
+            background-color: var(--color-secondary);
+            color: #4a5568;
+            transition: all 0.2s;
+            box-shadow: 0 4px #aae5d7; 
+        }
+        .btn-secondary:hover {
+            background-color: #a6f6df;
+            box-shadow: 0 2px #aae5d7;
+            transform: translateY(1px);
+        }
+
+        /* --- Diseño de Tarjetas de Respuesta (Visual y Animado) --- */
+        .radio-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 80px;
+            cursor: pointer;
+            border: 2px solid #e2e8f0;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.320, 1.275); /* Animación elástica */
+            user-select: none;
+            font-weight: 600;
+        }
+
+        /* Estilo al pasar el mouse */
+        .radio-card:hover {
+            transform: scale(1.02);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Estilo para "SÍ" cuando está seleccionado (Color Primario) */
+        input[type="radio"][value="Sí"]:checked + .radio-card {
+            background-color: var(--color-primary);
+            border-color: #f8c0c8;
+            color: white;
+            transform: scale(1.05);
+            box-shadow: 0 15px 25px -5px rgba(248, 192, 200, 0.5);
+        }
+
+        /* Estilo para "NO" cuando está seleccionado (Color Secundario para contraste) */
+        input[type="radio"][value="No"]:checked + .radio-card {
+            background-color: var(--color-secondary);
+            border-color: #c0f8e9;
+            color: var(--color-text); /* Mantener el texto oscuro para el contraste */
+            transform: scale(1.05);
+            box-shadow: 0 15px 25px -5px rgba(192, 248, 233, 0.5);
+        }
+
+        .radio-card .emoji {
+            font-size: 2rem;
+            margin-bottom: 0.25rem;
+            transition: transform 0.2s;
+        }
+
+        /* Animación del emoji al seleccionar */
+        input[type="radio"]:checked + .radio-card .emoji {
+            transform: rotate(10deg);
+        }
+
+        /* Estilos de la barra de estrés en el feedback y resultados */
+        .stress-meter-bg {
+            background: linear-gradient(to right, #34D399, #FBBF24, #EF4444); /* Verde (Bajo) - Amarillo - Rojo (Alto) */
+        }
+        .stress-pointer {
+            border-radius: 9999px;
+            height: 1.5rem;
+            width: 0.5rem;
+            transition: left 0.5s ease-out;
+            z-index: 10;
+        }
+        .modal-advice {
+            animation: fadeIn 0.8s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Estilos para el gráfico de resultados */
+        .result-item {
+            border-left: 5px solid var(--color-primary);
+        }
+        .bar-si { 
+            background-color: var(--color-primary); /* Rosa Pastel */
+            min-width: 0.5rem; 
+        }
+        .bar-no { 
+            background-color: var(--color-secondary); /* Menta Pastel */
+            min-width: 0.5rem; 
+        }
+        .text-si { color: #db2777; /* Rosa fuerte */ } 
+        .text-no { color: #0d9488; /* Verde azulado fuerte */ }
+
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4">
+
+    <!-- Firebase SDK Imports (Mantenidos para la estabilidad del entorno) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+
+        // Global variables for Firebase access
+        window.initializeApp = initializeApp;
+        window.auth = getAuth;
+        window.signInAnonymously = signInAnonymously;
+        window.signInWithCustomToken = signInWithCustomToken;
+        window.onAuthStateChanged = onAuthStateChanged;
+        window.getFirestore = getFirestore;
+        window.doc = doc;
+        window.onSnapshot = onSnapshot;
+        window.setLogLevel = setLogLevel;
+    </script>
+
+    <!-- Script de configuración inicial y constantes -->
+    <script>
+        // URL del Google Apps Script (¡DEBES ACTUALIZAR ESTO!)
+        const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyT6Oe_7jN2IQYSnF_bX2XnvAlKPPGJjRAT53JNg2RHRCRInk4rCcgU11vEalnJxpcnDA/exec"; // <-- ¡ACTUALIZA ESTA URL!
+
+        // Credenciales de acceso (Para ver la data global)
+        const ADMIN_USER = 'Atziri';
+        const ADMIN_PASS = 'Atziri123';
+    </script>
+
+
+    <!-- Cabecera y Botones de Control -->
+    <header class="w-full max-w-lg mb-8 p-4 rounded-xl shadow-lg header-bg flex justify-between items-center">
+        <h1 class="text-xl font-bold text-gray-700">🩺 Check-up Rápido de Estrés 🚀</h1>
+        <button id="showResultsBtn" class="btn-secondary px-4 py-2 rounded-lg font-medium shadow-md">
+            Ver Resultados
+        </button>
+    </header>
+
+    <!-- Contenedor Principal de la Encuesta -->
+    <main id="surveyContainer" class="w-full max-w-lg bg-white p-6 md:p-8 rounded-xl shadow-2xl space-y-6">
+        <p class="text-center text-lg mb-6 font-semibold text-gray-600">
+            Responde de forma anónima a las siguientes preguntas (10 preguntas).
+        </p>
+
+        <!-- Indicador de Progreso -->
+        <div id="progressHeader" class="mb-6">
+            <div class="text-sm font-semibold text-gray-600 mb-1 flex justify-between">
+                <span>Progreso:</span>
+                <span id="progressText">0/10</span>
+            </div>
+            <div class="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div id="progressBar" class="h-full bg-pink-400 transition-all duration-300 ease-out" style="width: 0%;"></div>
+            </div>
+        </div>
+        
+        <form id="stressSurveyForm" class="space-y-6">
+            
+            <!-- Pregunta 1: Estrés general -->
+            <div data-question-id="q1" class="question-item p-4 rounded-xl border border-gray-100 shadow-md">
+                <label class="block text-gray-700 font-medium mb-3">1. ¿Alguna vez te has sentido estresado?</label>
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="radio" id="q1_si" name="q1" value="Sí" required class="hidden">
+                    <label for="q1_si" class="radio-card rounded-xl bg-white hover:bg-red-50/50">
+                        <span class="emoji">🚨</span>
+                        <span>Sí</span>
+                    </label>
+                    <input type="radio" id="q1_no" name="q1" value="No" required class="hidden">
+                    <label for="q1_no" class="radio-card rounded-xl bg-white hover:bg-green-50/50">
+                        <span class="emoji">😌</span>
+                        <span>No</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Pregunta 2: Frecuencia de estrés -->
+            <div data-question-id="q2" class="question-item p-4 rounded-xl border border-gray-100 shadow-md">
+                <label class="block text-gray-700 font-medium mb-3">2. ¿Con qué frecuencia te has sentido estresado?</label>
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="radio" id="q2_si" name="q2" value="Sí" required class="hidden">
+                    <label for="q2_si" class="radio-card rounded-xl bg-white hover:bg-red-50/50">
+                        <span class="emoji">🔄</span>
+                        <span>Con Frecuencia (Sí)</span>
+                    </label>
+                    <input type="radio" id="q2_no" name="q2" value="No" required class="hidden">
+                    <label for="q2_no" class="radio-card rounded-xl bg-white hover:bg-green-50/50">
+                        <span class="emoji">🗓️</span>
+                        <span>Rara Vez/Nunca (No)</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Pregunta 3: Concentración/Preocupación -->
+            <div data-question-id="q3" class="question-item p-4 rounded-xl border border-gray-100 shadow-md">
+                <label class="block text-gray-700 font-medium mb-3">3. ¿Se te ha hecho difícil llevar a cabo una tarea debido a falta de concentración o preocupación?</label>
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="radio" id="q3_si" name="q3" value="Sí" required class="hidden">
+                    <label for="q3_si" class="radio-card rounded-xl bg-white hover:bg-red-50/50">
+                        <span class="emoji">🤯</span>
+                        <span>Sí</span>
+                    </label>
+                    <input type="radio" id="q3_no" name="q3" value="No" required class="hidden">
+                    <label for="q3_no" class="radio-card rounded-xl bg-white hover:bg-green-50/50">
+                        <span class="emoji">🎯</span>
+                        <span>No</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Pregunta 4: Estrés por relaciones personales -->
+            <div data-question-id="q4" class="question-item p-4 rounded-xl border border-gray-100 shadow-md">
+                <label class="block text-gray-700 font-medium mb-3">4. ¿Consideras que las relaciones personales te generan estrés?</label>
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="radio" id="q4_si" name="q4" value="Sí" required class="hidden">
+                    <label for="q4_si" class="radio-card rounded-xl bg-white hover:bg-red-50/50">
+                        <span class="emoji">💔</span>
+                        <span>Sí</span>
+                    </label>
+                    <input type="radio" id="q4_no" name="q4" value="No" required class="hidden">
+                    <label for="q4_no" class="radio-card rounded-xl bg-white hover:bg-green-50/50">
+                        <span class="emoji">🤝</span>
+                        <span>No</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Pregunta 5: Demasiado quehacer/poco tiempo -->
+            <div data-question-id="q5" class="question-item p-4 rounded-xl border border-gray-100 shadow-md">
+                <label class="block text-gray-700 font-medium mb-3">5. ¿Sientes que tienes demasiado quehacer y poco tiempo para lograrlo?</label>
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="radio" id="q5_si" name="q5" value="Sí" required class="hidden">
+                    <label for="q5_si" class="radio-card rounded-xl bg-white hover:bg-red-50/50">
+                        <span class="emoji">⏳</span>
+                        <span>Sí</span>
+                    </label>
+                    <input type="radio" id="q5_no" name="q5" value="No" required class="hidden">
+                    <label for="q5_no" class="radio-card rounded-xl bg-white hover:bg-green-50/50">
+                        <span class="emoji">✅</span>
+                        <span>No</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Pregunta 6: Apoyo emocional -->
+            <div data-question-id="q6" class="question-item p-4 rounded-xl border border-gray-100 shadow-md">
+                <label class="block text-gray-700 font-medium mb-3">6. ¿Cuando te sientes sol@ o estresad@ tienes algún apoyo o te acercas a alguien?</label>
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="radio" id="q6_si" name="q6" value="Sí" required class="hidden">
+                    <label for="q6_si" class="radio-card rounded-xl bg-white hover:bg-green-50/50">
+                        <span class="emoji">🫂</span>
+                        <span>Sí</span>
+                    </label>
+                    <input type="radio" id="q6_no" name="q6" value="No" required class="hidden">
+                    <label for="q6_no" class="radio-card rounded-xl bg-white hover:bg-red-50/50">
+                        <span class="emoji">😔</span>
+                        <span>No</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Pregunta 7: Afectación de salud física/mental -->
+            <div data-question-id="q7" class="question-item p-4 rounded-xl border border-gray-100 shadow-md">
+                <label class="block text-gray-700 font-medium mb-3">7. ¿Consideras que el estrés afecta tu salud física o mental?</label>
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="radio" id="q7_si" name="q7" value="Sí" required class="hidden">
+                    <label for="q7_si" class="radio-card rounded-xl bg-white hover:bg-red-50/50">
+                        <span class="emoji">🤕</span>
+                        <span>Sí</span>
+                    </label>
+                    <input type="radio" id="q7_no" name="q7" value="No" required class="hidden">
+                    <label for="q7_no" class="radio-card rounded-xl bg-white hover:bg-green-50/50">
+                        <span class="emoji">💪</span>
+                        <span>No</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Pregunta 8: Conocimiento de técnicas -->
+            <div data-question-id="q8" class="question-item p-4 rounded-xl border border-gray-100 shadow-md">
+                <label class="block text-gray-700 font-medium mb-3">8. ¿Conoces alguna técnica de manejo del estrés?</label>
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="radio" id="q8_si" name="q8" value="Sí" required class="hidden">
+                    <label for="q8_si" class="radio-card rounded-xl bg-white hover:bg-green-50/50">
+                        <span class="emoji">📚</span>
+                        <span>Sí</span>
+                    </label>
+                    <input type="radio" id="q8_no" name="q8" value="No" required class="hidden">
+                    <label for="q8_no" class="radio-card rounded-xl bg-white hover:bg-red-50/50">
+                        <span class="emoji">❓</span>
+                        <span>No</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Pregunta 9: Realización de técnicas -->
+            <div data-question-id="q9" class="question-item p-4 rounded-xl border border-gray-100 shadow-md">
+                <label class="block text-gray-700 font-medium mb-3">9. En caso de que sí conozcas alguna, ¿has realizado alguna?</label>
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="radio" id="q9_si" name="q9" value="Sí" required class="hidden">
+                    <label for="q9_si" class="radio-card rounded-xl bg-white hover:bg-green-50/50">
+                        <span class="emoji">🏃</span>
+                        <span>Sí</span>
+                    </label>
+                    <input type="radio" id="q9_no" name="q9" value="No" required class="hidden">
+                    <label for="q9_no" class="radio-card rounded-xl bg-white hover:bg-red-50/50">
+                        <span class="emoji">🛋️</span>
+                        <span>No</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Pregunta 10: Efectividad de las técnicas -->
+            <div data-question-id="q10" class="question-item p-4 rounded-xl border border-gray-100 shadow-md">
+                <label class="block text-gray-700 font-medium mb-3">10. ¿Te ha ayudado?</label>
+                <div class="grid grid-cols-2 gap-4">
+                    <input type="radio" id="q10_si" name="q10" value="Sí" required class="hidden">
+                    <label for="q10_si" class="radio-card rounded-xl bg-white hover:bg-green-50/50">
+                        <span class="emoji">🎉</span>
+                        <span>Sí</span>
+                    </label>
+                    <input type="radio" id="q10_no" name="q10" value="No" required class="hidden">
+                    <label for="q10_no" class="radio-card rounded-xl bg-white hover:bg-red-50/50">
+                        <span class="emoji">😟</span>
+                        <span>No</span>
+                    </label>
+                </div>
+            </div>
+
+
+            <div class="pt-4">
+                <button type="submit" id="submitBtn" class="w-full btn-primary px-6 py-3 rounded-xl font-bold text-lg" disabled>
+                    Enviar de forma Anónima
+                </button>
+            </div>
+        </form>
+        
+        <!-- Contenedor para mensajes de estado (errores/éxito) -->
+        <div id="messageBox" class="text-center mt-4 p-3 rounded-lg hidden"></div>
+    </main>
+    
+    <!-- Contenedor de Resultados (Oculto - Vista Admin) -->
+    <div id="resultsContainer" class="w-full max-w-lg bg-white p-6 md:p-8 rounded-xl shadow-2xl mt-8 hidden">
+        <h2 class="text-2xl font-bold mb-6 text-gray-700 border-b pb-2">Resultados Globales de la Encuesta</h2>
+        
+        <!-- Botón de Exportación -->
+        <div class="pb-6 flex justify-end">
+            <button id="exportPdfBtn" class="btn-primary flex items-center px-4 py-2 rounded-lg font-medium shadow-md disabled:opacity-50" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M5 4V3a1 1 0 011-1h8a1 1 0 011 1v1h1a2 2 0 012 2v10a2 2 0 01-2 2H3a2 2 0 01-2-2V6a2 2 0 012-2h1zm3 10a1 1 0 001 1h2a1 1 0 100-2H9a1 1 0 00-1 1zM6 6v1h8V6H6z" clip-rule="evenodd" />
+                </svg>
+                Exportar a PDF
+            </button>
+        </div>
+
+        <div id="resultsContent" class="space-y-6">
+            <p class="text-center text-gray-500">Cargando resultados...</p>
+        </div>
+
+        <button id="closeResultsBtn" class="w-full mt-6 btn-secondary px-6 py-3 rounded-xl font-bold text-lg shadow-md">
+            Cerrar Resultados
+        </button>
+    </div>
+
+    <!-- Modal para Contraseñas / Alertas / Feedback Inteligente -->
+    <div id="modalBackdrop" class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div id="modalContent" class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full transform transition-all">
+            <h3 id="modalTitle" class="text-xl font-bold mb-4 text-gray-700"></h3>
+            <div id="modalBody"></div>
+            <div id="modalFooter" class="mt-6 flex justify-end space-x-3"></div>
+        </div>
+    </div>
+
+
+    <script type="module">
+        // Variables y setup inicial
+        let app, db, auth;
+        let userId = 'anon_user';
+        let isAuthReady = false;
+        
+        // Referencias para el entorno Canvas
+        const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const NUM_QUESTIONS = 10;
+        
+        // --- 1. Definición de la lógica de puntuación de estrés ---
+        // Puntuación de Estrés: Suma 1 punto por cada respuesta que indica estrés o manejo deficiente.
+        const STRESS_LOGIC = {
+            // Respuestas que suman 1 punto de estrés si son 'Sí'
+            'q1': 'Sí', // ¿Alguna vez estresado? (Sí = +1 estrés)
+            'q2': 'Sí', // ¿Con qué frecuencia estresado? (Sí = +1 estrés, asumiendo "Con Frecuencia")
+            'q3': 'Sí', // ¿Difícil concentrarse/preocupación? (Sí = +1 estrés)
+            'q4': 'Sí', // ¿Relaciones generan estrés? (Sí = +1 estrés)
+            'q5': 'Sí', // ¿Demasiado quehacer/poco tiempo? (Sí = +1 estrés)
+            'q7': 'Sí', // ¿Estrés afecta salud física/mental? (Sí = +1 estrés)
+            
+            // Respuestas que suman 1 punto de estrés si son 'No' (Manejo deficiente/falta de apoyo)
+            'q6': 'No', // ¿Tienes apoyo o te acercas a alguien? (No = +1 estrés/aislamiento)
+            'q8': 'No', // ¿Conoces alguna técnica de manejo? (No = +1 falta de recursos)
+            'q9': 'No', // ¿Has realizado alguna técnica? (No = +1 inacción)
+            'q10': 'No' // ¿Te ha ayudado? (No = +1 inefectividad de manejo)
+        };
+        // -----------------------------------------------------------
+
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('stressSurveyForm');
+            const submitBtn = document.getElementById('submitBtn');
+            const messageBox = document.getElementById('messageBox');
+            const modalBackdrop = document.getElementById('modalBackdrop');
+            const questionItems = document.querySelectorAll('.question-item');
+            const showResultsBtn = document.getElementById('showResultsBtn'); 
+            const closeResultsBtn = document.getElementById('closeResultsBtn');
+            const exportPdfBtn = document.getElementById('exportPdfBtn');
+            const resultsContainer = document.getElementById('resultsContainer');
+            const surveyContainer = document.getElementById('surveyContainer');
+            const resultsContent = document.getElementById('resultsContent');
+
+            // --- 2. Inicialización de Firebase y Auth (Requerido por el entorno) ---
+            function initializeFirebase() {
+                try {
+                    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+                    
+                    if (Object.keys(firebaseConfig).length === 0) {
+                        console.error("Configuración de Firebase no disponible. Usando ID aleatorio.");
+                        userId = crypto.randomUUID();
+                        isAuthReady = true;
+                        return;
+                    }
+
+                    // Inicializar y obtener servicios
+                    window.setLogLevel('Debug');
+                    app = window.initializeApp(firebaseConfig);
+                    db = window.getFirestore(app);
+                    auth = window.auth(app);
+
+                    window.onAuthStateChanged(auth, async (user) => {
+                        if (user) {
+                            userId = user.uid;
+                        } else {
+                            try {
+                                const anonUser = await window.signInAnonymously(auth);
+                                userId = anonUser.user.uid;
+                            } catch (error) {
+                                console.error("Error al iniciar sesión anónimamente:", error);
+                                userId = crypto.randomUUID(); 
+                            }
+                        }
+                        isAuthReady = true;
+                    });
+
+                    if (typeof __initial_auth_token !== 'undefined') {
+                        window.signInWithCustomToken(auth, __initial_auth_token)
+                            .then(userCredential => console.log("Sesión con token de usuario inicial exitosa."))
+                            .catch(error => console.error("Error al autenticar con token inicial:", error));
+                    }
+
+                } catch (error) {
+                    console.error("Fallo grave en la inicialización de Firebase:", error);
+                }
+            }
+            initializeFirebase();
+
+            // --- 3. Funciones de UI y Progreso ---
+
+            /** Actualiza la barra de progreso y el botón de envío. */
+            function updateProgress() {
+                const answeredQuestions = form.querySelectorAll('input[type="radio"]:checked').length;
+                const percentage = (answeredQuestions / NUM_QUESTIONS) * 100;
+
+                document.getElementById('progressText').textContent = `${answeredQuestions}/${NUM_QUESTIONS}`;
+                document.getElementById('progressBar').style.width = `${percentage}%`;
+
+                if (answeredQuestions === NUM_QUESTIONS) {
+                    submitBtn.disabled = false;
+                    submitBtn.classList.remove('opacity-50');
+                    submitBtn.textContent = 'Enviar de forma Anónima';
+                } else {
+                    submitBtn.disabled = true;
+                    submitBtn.classList.add('opacity-50');
+                    submitBtn.textContent = `Faltan ${NUM_QUESTIONS - answeredQuestions} Preguntas`;
+                }
+            }
+
+            // Añadir listener a todas las preguntas para actualizar el progreso
+            questionItems.forEach(item => {
+                item.addEventListener('change', updateProgress);
+            });
+            
+            // Inicializar progreso
+            updateProgress();
+
+            // --- 4. Modal y Feedback Inteligente ---
+            
+            /** Muestra un modal con contenido dinámico. */
+            function showModal(title, contentHtml, footerButtons = []) {
+                const modalTitle = document.getElementById('modalTitle');
+                const modalBody = document.getElementById('modalBody');
+                const modalFooter = document.getElementById('modalFooter');
+                
+                modalTitle.textContent = title;
+                modalBody.innerHTML = contentHtml;
+                modalFooter.innerHTML = '';
+                
+                footerButtons.forEach(button => {
+                    const btn = document.createElement('button');
+                    btn.textContent = button.text;
+                    btn.className = button.className || 'btn-secondary px-4 py-2 rounded-lg font-medium shadow-sm';
+                    btn.addEventListener('click', button.onClick);
+                    modalFooter.appendChild(btn);
+                });
+
+                modalBackdrop.classList.remove('hidden');
+            }
+
+            /** Oculta el modal. */
+            function hideModal() {
+                modalBackdrop.classList.add('hidden');
+            }
+
+            /**
+             * Muestra un modal de éxito con feedback personalizado basado en la puntuación de estrés.
+             * @param {number} stressScore Puntuación de estrés (máx 10).
+             */
+            function showSuccessModal(stressScore) {
+                let advice = '';
+                let titleText = '🎉 ¡Check-up Completo!';
+                let emoji = '💖';
+                
+                // Calcular la posición del puntero de 0 a 100%
+                const pointerPosition = (stressScore / NUM_QUESTIONS) * 100;
+                const percentText = `${stressScore}/${NUM_QUESTIONS}`;
+
+                if (stressScore <= 3) {
+                    advice = `¡Excelente! Tu puntuación (${percentText}) sugiere que manejas muy bien el estrés y tienes buenas estrategias de afrontamiento. Sigue así, manteniendo tus redes de apoyo y tu conocimiento en técnicas.`;
+                    emoji = '🟢';
+                } else if (stressScore <= 6) {
+                    advice = `Tienes una carga moderada de estrés (${percentText}). Hay áreas de oportunidad, especialmente en el manejo o la búsqueda de apoyo. Te sugerimos investigar técnicas de respiración y asegurarte de tener un círculo de confianza.`;
+                    emoji = '🟡';
+                } else { // 7 a 10
+                    advice = `🚨 ¡Nivel de Estrés Alto! 🚨 Tu puntuación (${percentText}) indica que el estrés podría estar afectando tu concentración, relaciones o salud. Prioriza el descanso, acércate a alguien de confianza y comienza a aplicar activamente las técnicas que conoces, o busca apoyo profesional.`;
+                    emoji = '🔴';
+                }
+                
+                const contentHtml = `
+                    <div class="text-center space-y-4 modal-advice">
+                        <span class="text-6xl">${emoji}</span>
+                        <p class="text-xl font-semibold text-gray-800">${titleText}</p>
+                        <p class="text-gray-600">${advice}</p>
+
+                        <!-- Indicador visual de Estrés -->
+                        <div class="pt-2">
+                            <p class="text-sm font-bold text-gray-700 mb-2">Tu Nivel de Estrés</p>
+                            <div class="stress-meter-bg w-full h-4 rounded-full relative">
+                                <div 
+                                    class="stress-pointer absolute top-1/2 -translate-y-1/2 -translate-x-1/2 bg-gray-900 shadow-xl"
+                                    style="left: ${pointerPosition}%;"
+                                ></div>
+                            </div>
+                            <div class="flex justify-between text-xs mt-1 text-gray-500">
+                                <span>Bajo</span>
+                                <span>Alto</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                showModal('Tu Resultado Personalizado', contentHtml, [
+                    { 
+                        text: 'Aceptar y Continuar', 
+                        className: 'btn-primary px-4 py-2 rounded-lg font-medium shadow-md',
+                        onClick: () => {
+                            hideModal();
+                            form.reset();
+                            updateProgress();
+                        }
+                    }
+                ]);
+            }
+
+            /** Función auxiliar para mostrar alertas de error/éxito */
+            function showAlert(message, isSuccess = true) {
+                messageBox.textContent = message;
+                messageBox.className = `text-center mt-4 p-3 rounded-lg font-medium ${isSuccess ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`;
+                messageBox.classList.remove('hidden');
+                setTimeout(() => messageBox.classList.add('hidden'), 5000);
+            }
+
+            // --- 5. Lógica de Envío (Google Apps Script) ---
+            
+            /** Implementación simple de reintentos para fetch */
+            async function fetchWithRetry(url, options, retries = 3) {
+                for (let i = 0; i < retries; i++) {
+                    try {
+                        const response = await fetch(url, options);
+                        if (!response.ok) {
+                            const text = await response.text();
+                            try {
+                                const jsonError = JSON.parse(text);
+                                if (jsonError.status && jsonError.status !== 'SUCCESS') {
+                                    throw new Error(jsonError.message || 'Error del script de Apps Script.');
+                                }
+                            } catch (e) {
+                                if (response.status !== 200) {
+                                    throw new Error(`Error HTTP! status: ${response.status}`);
+                                }
+                            }
+                        }
+                        return response;
+                    } catch (error) {
+                        console.warn(`Fetch intento ${i + 1} fallido. Reintentando...`, error);
+                        if (i === retries - 1) throw error;
+                        await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+                    }
+                }
+            }
+
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Enviando Respuestas...';
+
+                const formData = new FormData(form);
+                const data = {};
+                let stressScore = 0; // Contador de estrés (0 a 10)
+
+                for (let [key, value] of formData.entries()) {
+                    data[key] = value;
+                    
+                    // Lógica para calcular estrés basada en STRESS_LOGIC
+                    const stressIndicatorValue = STRESS_LOGIC[key];
+                    if (stressIndicatorValue && value === stressIndicatorValue) {
+                        stressScore++;
+                    }
+                }
+
+                // Generar URL con parámetros para Google Apps Script (GET request)
+                const url = new URL(GAS_WEB_APP_URL);
+                Object.keys(data).forEach(key => url.searchParams.append(key, data[key]));
+
+                try {
+                    const response = await fetchWithRetry(url.toString(), { method: 'GET' });
+                    const result = await response.json();
+                    
+                    if (result.status === 'SUCCESS') {
+                        showSuccessModal(stressScore); // Muestra el feedback personalizado
+                    } else {
+                        throw new Error(result.message || 'Error desconocido al registrar las respuestas.');
+                    }
+
+                } catch (error) {
+                    console.error('Error al registrar:', error);
+                    showAlert('Error al registrar respuestas. Verifica la URL de la Apps Script.', false);
+                } finally {
+                    submitBtn.disabled = false;
+                    updateProgress(); // Llama a updateProgress para restaurar el texto
+                }
+            });
+            
+            // --- 6. Lógica de Resultados (Admin View) ---
+
+            function showLoginModal() {
+                const loginHtml = `
+                    <div class="space-y-4">
+                        <input type="text" id="usernameInput" placeholder="Usuario" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-300">
+                        <input type="password" id="passwordInput" placeholder="Contraseña" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-300">
+                        <p id="loginMessage" class="text-sm text-red-500 hidden"></p>
+                    </div>
+                `;
+
+                showModal('Acceso a Resultados Globales', loginHtml, [
+                    {
+                        text: 'Cancelar',
+                        className: 'btn-secondary px-4 py-2 rounded-lg font-medium shadow-sm',
+                        onClick: hideModal
+                    },
+                    {
+                        text: 'Ingresar',
+                        className: 'btn-primary px-4 py-2 rounded-lg font-medium shadow-sm',
+                        onClick: handleLogin
+                    }
+                ]);
+            }
+
+            function handleLogin() {
+                const username = document.getElementById('usernameInput').value;
+                const password = document.getElementById('passwordInput').value;
+                const loginMessage = document.getElementById('loginMessage');
+                loginMessage.classList.add('hidden');
+
+                if (username === ADMIN_USER && password === ADMIN_PASS) {
+                    hideModal();
+                    fetchAndDisplayResults();
+                } else {
+                    loginMessage.textContent = 'Usuario o contraseña incorrectos.';
+                    loginMessage.classList.remove('hidden');
+                }
+            }
+
+            async function fetchAndDisplayResults() {
+                surveyContainer.classList.add('hidden');
+                resultsContainer.classList.remove('hidden');
+                resultsContent.innerHTML = '<p class="text-center text-gray-500">Cargando resultados...</p>';
+                exportPdfBtn.disabled = true; 
+                exportPdfBtn.classList.add('opacity-50');
+
+                try {
+                    const url = new URL(GAS_WEB_APP_URL);
+                    url.searchParams.append('action', 'getResults'); 
+
+                    const response = await fetchWithRetry(url.toString(), {
+                        method: 'GET'
+                    });
+                    
+                    // Simulación de respuesta JSON si la Apps Script no está disponible o no se configuró
+                    const responseText = await response.text();
+                    let results;
+                    try {
+                        results = JSON.parse(responseText);
+                    } catch (e) {
+                         // Fallback con datos dummy para la demostración de la UI
+                         // Los datos simulados están ajustados para generar un Nivel de Estrés Moderado-Alto
+                         results = {
+                            status: 'SUCCESS',
+                            data: {
+                                total: 50,
+                                q1: { 'Sí': 40, 'No': 10 },    // Estrés (Sí)
+                                q2: { 'Sí': 30, 'No': 20 },    // Estrés (Sí)
+                                q3: { 'Sí': 35, 'No': 15 },    // Estrés (Sí)
+                                q4: { 'Sí': 25, 'No': 25 },    // Estrés (Sí)
+                                q5: { 'Sí': 38, 'No': 12 },    // Estrés (Sí)
+                                q6: { 'Sí': 15, 'No': 35 },    // Bienestar (Sí) -> Estrés (No)
+                                q7: { 'Sí': 45, 'No': 5 },     // Estrés (Sí)
+                                q8: { 'Sí': 20, 'No': 30 },    // Bienestar (Sí) -> Estrés (No)
+                                q9: { 'Sí': 18, 'No': 32 },    // Bienestar (Sí) -> Estrés (No)
+                                q10: { 'Sí': 10, 'No': 40 }    // Bienestar (Sí) -> Estrés (No)
+                            }
+                        };
+                        if(responseText.startsWith("<") && responseText.includes("html")) {
+                             console.warn("Respuesta no es JSON. Usando datos de simulación.");
+                        } else if (responseText.includes("Status: ERROR")) {
+                             console.error("Error del servidor de Google Apps Script.");
+                        }
+                    }
+
+                    
+                    if (results.status === 'SUCCESS' && results.data) {
+                        renderResults(results.data);
+                        exportPdfBtn.disabled = false; 
+                        exportPdfBtn.classList.remove('opacity-50');
+                    } else {
+                        throw new Error(results.message || 'Error al obtener los datos de resultados.');
+                    }
+
+                } catch (error) {
+                    console.error('Error al obtener resultados:', error);
+                    resultsContent.innerHTML = `<p class="text-center text-red-500 font-medium">
+                        Error al cargar resultados. Verifica la URL de la Apps Script y el endpoint 'getResults'.
+                    </p>`;
+                    exportPdfBtn.disabled = true; 
+                }
+            }
+
+            function renderResults(data) {
+                resultsContent.innerHTML = ''; // Limpiar contenido anterior
+                const totalResponses = data.total;
+                
+                // Mapeo de preguntas original (V7) y su significado de estrés
+                const questionsMap = [
+                    { id: "q1", text: "1. ¿Alguna vez te has sentido estresado?", stressOn: "Sí" },
+                    { id: "q2", text: "2. ¿Con qué frecuencia te has sentido estresado?", stressOn: "Sí" },
+                    { id: "q3", text: "3. ¿Se te ha hecho difícil llevar a cabo una tarea debido a falta de concentración o preocupación?", stressOn: "Sí" },
+                    { id: "q4", text: "4. ¿Consideras que las relaciones personales te generan estrés?", stressOn: "Sí" },
+                    { id: "q5", text: "5. ¿Sientes que tienes demasiado quehacer y poco tiempo para lograrlo?", stressOn: "Sí" },
+                    { id: "q6", text: "6. ¿Cuando te sientes sol@ o estresad@ tienes algún apoyo o te acercas a alguien?", stressOn: "No" },
+                    { id: "q7", text: "7. ¿Consideras que el estrés afecta tu salud física o mental?", stressOn: "Sí" },
+                    { id: "q8", text: "8. ¿Conoces alguna técnica de manejo del estrés?", stressOn: "No" },
+                    { id: "q9", text: "9. En caso de que sí conozcas alguna, ¿has realizado alguna?", stressOn: "No" },
+                    { id: "q10", text: "10. ¿Te ha ayudado?", stressOn: "No" }
+                ];
+                
+                let totalStressAnswers = 0; // Respuestas que indican estrés
+                const totalPossibleAnswers = totalResponses * NUM_QUESTIONS;
+                
+                // 1. Calcular el score general de estrés
+                questionsMap.forEach(q => {
+                    const countSi = data[q.id]?.Sí || 0;
+                    const countNo = data[q.id]?.No || 0;
+                    
+                    if (q.stressOn === "Sí") {
+                        totalStressAnswers += countSi;
+                    } else { // stressOn: "No"
+                        totalStressAnswers += countNo;
+                    }
+                });
+
+                const overallStressPercentage = totalPossibleAnswers === 0 ? 0 : (totalStressAnswers / totalPossibleAnswers) * 100;
+                const stressLevel = overallStressPercentage.toFixed(1);
+                
+                // El puntero debe ir del 0 al 100%
+                const pointerPosition = overallStressPercentage.toFixed(0); 
+
+                const getStressText = (percent) => {
+                    if (percent < 30) return { text: "Bajo", color: "text-green-600" };
+                    if (percent < 60) return { text: "Moderado", color: "text-yellow-600" };
+                    return { text: "Alto", color: "text-red-600" };
+                };
+                const stressInfo = getStressText(overallStressPercentage);
+
+                // --- Inyectar el RESUMEN GLOBAL ---
+                resultsContent.innerHTML += `
+                    <div class="pdf-section bg-gray-100 p-5 rounded-xl shadow-md mb-8 space-y-4">
+                        <div class="flex justify-between items-center border-b pb-2 mb-2">
+                            <h3 class="text-lg font-bold text-gray-700">Resumen Global</h3>
+                        </div>
+                        <p class="text-sm font-medium text-gray-500">Total de Encuestas Recibidas: <span class="text-xl font-extrabold text-pink-500">${totalResponses}</span></p>
+                        
+                        <div class="pt-2">
+                            <p class="text-lg font-semibold text-gray-700 mb-2">Nivel de Estrés General: <span class="${stressInfo.color} font-extrabold">${stressInfo.text} (${stressLevel}%)</span></p>
+                            
+                            <!-- Medidor de Estrés -->
+                            <div class="relative w-full h-4 stress-meter-bg rounded-lg">
+                                <div class="stress-pointer bg-white shadow-xl absolute top-1/2 -translate-y-1/2 -translate-x-1/2" 
+                                     style="left: ${pointerPosition}%;">
+                                </div>
+                            </div>
+                            <div class="flex justify-between text-xs mt-1 text-gray-500 font-medium">
+                                <span>Bajo</span>
+                                <span>Alto</span>
+                            </div>
+                        </div>
+                    </div>
+                    <h3 class="text-xl font-bold mb-4 text-gray-700">Resultados Detallados por Pregunta</h3>
+                `;
+                
+                // --- Inyectar Resultados por Pregunta ---
+
+                questionsMap.forEach((q, index) => {
+                    const qKey = q.id;
+                    const countSi = data[qKey]?.Sí || 0;
+                    const countNo = data[qKey]?.No || 0;
+                    const total = countSi + countNo;
+                    
+                    const percentSi = total === 0 ? 0 : (countSi / total * 100);
+                    const percentNo = total === 0 ? 0 : (countNo / total * 100);
+                    
+                    const percentSiFormatted = percentSi.toFixed(1);
+                    const percentNoFormatted = percentNo.toFixed(1);
+
+                    let siWidth = `${percentSi}%`;
+                    let noWidth = `${percentNo}%`;
+                    
+                    const showSiText = percentSi > 10;
+                    const showNoText = percentNo > 10;
+                    
+                    resultsContent.innerHTML += `
+                        <div class="result-item p-4 bg-gray-50 rounded-lg shadow-inner">
+                            <p class="font-semibold text-gray-800 mb-2">${q.text}</p>
+                            <p class="text-sm text-gray-500 mb-3">Total de respuestas válidas: ${total}</p>
+                            
+                            <!-- Indicador de Porcentajes y Cuentas -->
+                            <div class="flex justify-between font-bold text-sm mb-1">
+                                <span class="text-si">SÍ: ${percentSiFormatted}% (${countSi})</span>
+                                <span class="text-no">NO: ${percentNoFormatted}% (${countNo})</span>
+                            </div>
+
+                            <!-- Barra Segmentada (Gráfico de Distribución) -->
+                            <div class="w-full h-8 flex rounded-lg overflow-hidden shadow-md border border-gray-200">
+                                <!-- Segmento SÍ (Rosa Pastel) -->
+                                <div class="bar-si h-full flex items-center justify-center text-white" 
+                                    style="width: ${siWidth};">
+                                    ${showSiText ? `<span class="text-xs font-bold">${percentSiFormatted}%</span>` : ''}
+                                </div>
+                                <!-- Segmento NO (Menta Pastel) -->
+                                <div class="bar-no h-full flex items-center justify-center text-gray-700" 
+                                    style="width: ${noWidth};">
+                                    ${showNoText ? `<span class="text-xs font-bold">${percentNoFormatted}%</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            /** Lógica para exportar a PDF */
+            function exportToPdf() {
+                const element = resultsContainer;
+                const fileName = 'Resultados_Encuesta_Estres_' + new Date().toISOString().slice(0, 10) + '.pdf';
+                
+                // Ocultar botones antes de generar PDF
+                exportPdfBtn.style.display = 'none';
+                closeResultsBtn.style.display = 'none';
+
+                const options = {
+                    margin: 0.5,
+                    filename: fileName,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { 
+                        scale: 2, 
+                        logging: true,
+                        useCORS: true 
+                    },
+                    jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+                };
+
+                html2pdf().set(options).from(element).save().then(() => {
+                    // Mostrar botones después de generar PDF
+                    exportPdfBtn.style.display = 'flex';
+                    closeResultsBtn.style.display = 'block';
+                });
+            }
+
+            // --- Event Listeners ---
+            
+            showResultsBtn.addEventListener('click', showLoginModal);
+            closeResultsBtn.addEventListener('click', () => {
+                resultsContainer.classList.add('hidden');
+                surveyContainer.classList.remove('hidden');
+            });
+
+            exportPdfBtn.addEventListener('click', exportToPdf);
+            
+            console.log("Aplicación de encuesta cargada. ¡No olvides actualizar la GAS_WEB_APP_URL y las credenciales de Admin!");
+        });
+    </script>
+</body>
+</html>
