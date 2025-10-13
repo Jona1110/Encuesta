@@ -164,15 +164,27 @@
         // Credenciales de acceso (Para ver la data global)
         const ADMIN_USER = 'Atziri';
         const ADMIN_PASS = 'Atziri123';
+        
+        /**
+         * Función global expuesta para activar el modal de administrador desde la consola.
+         * La hemos mantenido por si es útil, pero ahora se usa el doble toque en el título.
+         * Uso: showAdminAccess();
+         */
+        window.showAdminAccess = () => {
+             // Esta función será definida en el DOMContentLoaded
+             if (window.showLoginModal) {
+                 window.showLoginModal();
+             } else {
+                 console.error("La aplicación aún no está lista. Intenta de nuevo en un momento.");
+             }
+        };
     </script>
 
 
     <!-- Cabecera y Botones de Control -->
-    <header class="w-full max-w-lg mb-8 p-4 rounded-xl shadow-lg header-bg flex justify-between items-center">
-        <h1 class="text-xl font-bold text-gray-700">🩺 Encuesta de Estrés 🚀</h1>
-        <button id="showResultsBtn" class="btn-secondary px-4 py-2 rounded-lg font-medium shadow-md">
-            Ver Resultados
-        </button>
+    <!-- Se añadió el ID 'headerTitle' para el doble toque/clic -->
+    <header id="headerTitle" class="w-full max-w-lg mb-8 p-4 rounded-xl shadow-lg header-bg flex justify-center items-center cursor-pointer">
+        <h1 class="text-xl font-bold text-gray-700 select-none">🩺 Encuesta de Estrés 🚀</h1>
     </header>
 
     <!-- Contenedor Principal de la Encuesta -->
@@ -440,17 +452,20 @@
 
 
         document.addEventListener('DOMContentLoaded', () => {
+            const headerTitle = document.getElementById('headerTitle');
             const form = document.getElementById('stressSurveyForm');
             const submitBtn = document.getElementById('submitBtn');
             const messageBox = document.getElementById('messageBox');
             const modalBackdrop = document.getElementById('modalBackdrop');
             const questionItems = document.querySelectorAll('.question-item');
-            const showResultsBtn = document.getElementById('showResultsBtn'); 
             const closeResultsBtn = document.getElementById('closeResultsBtn');
             const exportPdfBtn = document.getElementById('exportPdfBtn');
             const resultsContainer = document.getElementById('resultsContainer');
             const surveyContainer = document.getElementById('surveyContainer');
             const resultsContent = document.getElementById('resultsContent');
+            
+            // Variable para manejar el doble clic/toque
+            let lastTap = 0;
 
             // --- 2. Inicialización de Firebase y Auth (Requerido por el entorno) ---
             function initializeFirebase() {
@@ -694,11 +709,13 @@
                 }
             });
             
-            // --- 6. Lógica de Resultados (Admin View) ---
+            // --- 6. Lógica de Acceso de Administrador (Doble Toque/Clic) ---
 
+            /** Muestra el modal de login */
             function showLoginModal() {
                 const loginHtml = `
                     <div class="space-y-4">
+                        <p class="text-sm text-gray-500 font-medium">Introduce las credenciales de administrador para ver los resultados:</p>
                         <input type="text" id="usernameInput" placeholder="Usuario" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-300">
                         <input type="password" id="passwordInput" placeholder="Contraseña" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-300">
                         <p id="loginMessage" class="text-sm text-red-500 hidden"></p>
@@ -718,7 +735,12 @@
                     }
                 ]);
             }
+            
+            // Exportar la función de login al ámbito global para el doble clic
+            window.showLoginModal = showLoginModal;
 
+
+            /** Lógica de autenticación del login */
             function handleLogin() {
                 const username = document.getElementById('usernameInput').value;
                 const password = document.getElementById('passwordInput').value;
@@ -733,7 +755,24 @@
                     loginMessage.classList.remove('hidden');
                 }
             }
+            
+            // Añadir el listener de doble toque/clic al encabezado
+            headerTitle.addEventListener('click', (e) => {
+                const now = Date.now();
+                const timeDiff = now - lastTap;
+                // Si el tiempo entre el último toque y este es menor a 300ms, es un doble toque
+                if (timeDiff < 300) {
+                    e.preventDefault(); // Prevenir cualquier acción de clic estándar si es un doble clic
+                    showLoginModal();
+                    lastTap = 0; // Resetear para evitar triples toques
+                } else {
+                    lastTap = now;
+                }
+            });
 
+
+            // --- 7. Lógica de Carga y Renderizado de Resultados ---
+            
             async function fetchAndDisplayResults() {
                 surveyContainer.classList.add('hidden');
                 resultsContainer.classList.remove('hidden');
@@ -949,7 +988,6 @@
 
             // --- Event Listeners ---
             
-            showResultsBtn.addEventListener('click', showLoginModal);
             closeResultsBtn.addEventListener('click', () => {
                 resultsContainer.classList.add('hidden');
                 surveyContainer.classList.remove('hidden');
@@ -957,9 +995,8 @@
 
             exportPdfBtn.addEventListener('click', exportToPdf);
             
-            console.log("Aplicación de encuesta cargada. ¡No olvides actualizar la GAS_WEB_APP_URL y las credenciales de Admin!");
+            console.log("Aplicación de encuesta cargada. Acceso a resultados: doble toque en el título 'Check-up Rápido de Estrés'.");
         });
     </script>
 </body>
 </html>
-
